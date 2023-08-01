@@ -1,61 +1,39 @@
 #!/usr/bin/env python3
-
+"""Most Recently Used caching module.
 """
-MRUCache Module
-"""
-
 from collections import OrderedDict
 
-class BaseCaching:
-    """
-    BaseCaching class
-    """
-    MAX_ITEMS = 4
-
-    def __init__(self):
-        self.cache_data = {}
-
-    def print_cache(self):
-        print("Current cache:")
-        for key in sorted(self.cache_data.keys()):
-            print("{}: {}".format(key, self.cache_data.get(key)))
-
-    def put(self, key, item):
-        error_msg = "put must be implemented in your cache class"
-        raise NotImplementedError(error_msg)
-
-    def get(self, key):
-        error_msg = "get must be implemented in your cache class"
-        raise NotImplementedError(error_msg)
+from base_caching import BaseCaching
 
 
 class MRUCache(BaseCaching):
-    """
-    MRUCache class, inherits from BaseCaching
+    """Represents an object that allows storing and
+    retrieving items from a dictionary with an MRU
+    removal mechanism when the limit is reached.
     """
     def __init__(self):
+        """Initializes the cache.
+        """
         super().__init__()
-        self.queue = OrderedDict()
+        self.cache_data = OrderedDict()
 
     def put(self, key, item):
-        if key is not None and item is not None:
-            if key in self.cache_data:
-                # Move the existing key to the end of the queue (most recently used)
-                self.queue.move_to_end(key)
-            else:
-                if len(self.cache_data) >= self.MAX_ITEMS:
-                    # Remove the most recently used item (last item in the queue)
-                    mru_key = next(reversed(self.queue))
-                    self.cache_data.pop(mru_key)
-                    self.queue.popitem(last=True)
-                    print(f"DISCARD: {mru_key}")
-
+        """Adds an item in the cache.
+        """
+        if key is None or item is None:
+            return
+        if key not in self.cache_data:
+            if len(self.cache_data) + 1 > BaseCaching.MAX_ITEMS:
+                mru_key, _ = self.cache_data.popitem(False)
+                print("DISCARD:", mru_key)
             self.cache_data[key] = item
-            self.queue[key] = True
+            self.cache_data.move_to_end(key, last=False)
+        else:
+            self.cache_data[key] = item
 
     def get(self, key):
-        if key is None or key not in self.cache_data:
-            return None
-        # Move the accessed key to the end of the queue (most recently used)
-        self.queue.move_to_end(key)
-        return self.cache_data[key]
+        """Retrieves an item by key.
+        """
+        if key is not None and key in self.cache_data:
+            self.cache_data.move_to_end(key, last=False)
+        return self.cache_data.get(key, None)

@@ -1,74 +1,73 @@
 #!/usr/bin/env python3
-
+"""Least Frequently Used caching module.
 """
-LFUCache Module
-"""
+from collections import OrderedDict
 
-from collections import OrderedDict, defaultdict
-
-class BaseCaching:
-    """
-    BaseCaching class
-    """
-    MAX_ITEMS = 4
-
-    def __init__(self):
-        self.cache_data = {}
-
-    def print_cache(self):
-        print("Current cache:")
-        for key in sorted(self.cache_data.keys()):
-            print("{}: {}".format(key, self.cache_data.get(key)))
-
-    def put(self, key, item):
-        error_msg = "put must be implemented in your cache class"
-        raise NotImplementedError(error_msg)
-
-    def get(self, key):
-        error_msg = "get must be implemented in your cache class"
-        raise NotImplementedError(error_msg)
+from base_caching import BaseCaching
 
 
 class LFUCache(BaseCaching):
-    """
-    LFUCache class, inherits from BaseCaching
+    """Represents an object that allows storing and
+    retrieving items from a dictionary with a LFU
+    removal mechanism when the limit is reached.
     """
     def __init__(self):
+        """Initializes the cache.
+        """
         super().__init__()
-        self.freq_counter = defaultdict(int)
-        self.queue = OrderedDict()
+        self.cache_data = OrderedDict()
+        self.keys_freq = []
+
+    def __reorder_items(self, mru_key):
+        """Reorders the items in this cache based on the most
+        recently used item.
+        """
+        max_positions = []
+        mru_freq = 0
+        mru_pos = 0
+        ins_pos = 0
+        for i, key_freq in enumerate(self.keys_freq):
+            if key_freq[0] == mru_key:
+                mru_freq = key_freq[1] + 1
+                mru_pos = i
+                break
+            elif len(max_positions) == 0:
+                max_positions.append(i)
+            elif key_freq[1] < self.keys_freq[max_positions[-1]][1]:
+                max_positions.append(i)
+        max_positions.reverse()
+        for pos in max_positions:
+            if self.keys_freq[pos][1] > mru_freq:
+                break
+            ins_pos = pos
+        self.keys_freq.pop(mru_pos)
+        self.keys_freq.insert(ins_pos, [mru_key, mru_freq])
 
     def put(self, key, item):
-        if key is not None and item is not None:
-            if key in self.cache_data:
-                # Move the existing key to the end of the queue (most recently used)
-                self.queue.move_to_end(key)
-            else:
-                if len(self.cache_data) >= self.MAX_ITEMS:
-                    # Find the least frequency used items
-                    min_freq = min(self.freq_counter.values())
-                    least_frequent_keys = [k for k, v in self.freq_counter.items() if v == min_freq]
-
-                    # If there is more than one item with the least frequency,
-                    # use the LRU algorithm to select the least recently used item
-                    lru_key = next(iter(self.queue))
-                    for key in least_frequent_keys:
-                        if key in self.queue:
-                            lru_key = key
-                            break
-
-                    self.cache_data.pop(lru_key)
-                    self.queue.pop(lru_key)
-                    print(f"DISCARD: {lru_key}")
-
+        """Adds an item in the cache.
+        """
+        if key is None or item is None:
+            return
+        if key not in self.cache_data:
+            if len(self.cache_data) + 1 > BaseCaching.MAX_ITEMS:
+                lfu_key, _ = self.keys_freq[-1]
+                self.cache_data.pop(lfu_key)
+                self.keys_freq.pop()
+                print("DISCARD:", lfu_key)
             self.cache_data[key] = item
-            self.queue[key] = True
-            self.freq_counter[key] += 1
+            ins_index = len(self.keys_freq)
+            for i, key_freq in enumerate(self.keys_freq):
+                if key_freq[1] == 0:
+                    ins_index = i
+                    break
+            self.keys_freq.insert(ins_index, [key, 0])
+        else:
+            self.cache_data[key] = item
+            self.__reorder_items(key)
 
     def get(self, key):
-        if key is None or key not in self.cache_data:
-            return None
-        # Move the accessed key to the end of the queue (most recently used)
-        self.queue.move_to_end(key)
-        self.freq_counter[key] += 1
-        return self.cache_data[key]
+        """Retrieves an item by key.
+        """
+        if key is not None and key in self.cache_data:
+            self.__reorder_items(key)
+        return self.cache_data.get(key, None)
